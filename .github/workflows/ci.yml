@@ -1,0 +1,117 @@
+name: ci
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: gofmt
+        run: |
+          out="$(gofmt -l .)"
+          if [ -n "$out" ]; then
+            echo "gofmt needed on:"; echo "$out"; exit 1
+          fi
+      - name: go vet
+        run: go vet ./...
+      - name: protobuf output is committed and regenerable
+        run: |
+          test -f internal/pb/gateway.pb.go
+          test -f internal/pb/gateway_grpc.pb.go
+
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: unit tests with race detector and coverage
+        run: go test -race -coverprofile=coverage.out -covermode=atomic ./...
+      - name: print total coverage
+        run: go tool cover -func=coverage.out | tail -1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.out
+          retention-days: 7
+
+  integration:
+    name: integration
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: evg
+          POSTGRES_USER: evg
+          POSTGRES_PASSWORD: evg
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U evg -d evg"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: integration tests (real Postgres + Redis)
+        env:
+          EVG_TEST_POSTGRES_DSN: postgres://evg:evg@localhost:5432/evg?sslmode=disable
+          EVG_TEST_REDIS_ADDR: localhost:6379
+        run: go test -count=1 -tags integration -v ./internal/storage/...
+
+  build:
+    name: docker-build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: build distroless image
+        run: docker build -t edgevisiongateway:ci .
+      - name: image size
+        run: docker image inspect edgevisiongateway:ci --format '{{.Size}} bytes'
+
+  terraform:
+    name: terraform
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.8"
+      - name: fmt
+        run: terraform fmt -check -recursive
+      - name: init
+        run: terraform init -backend=false -input=false
+      - name: validate
+        run: terraform validate

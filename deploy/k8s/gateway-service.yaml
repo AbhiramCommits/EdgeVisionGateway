@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: evg-gateway
+  namespace: edgevision
+  labels:
+    app: evg-gateway
+spec:
+  type: ClusterIP
+  selector:
+    app: evg-gateway
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+    - name: grpc
+      port: 9090
+      targetPort: grpc

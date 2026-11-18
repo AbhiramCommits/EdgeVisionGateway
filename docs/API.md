@@ -36,6 +36,7 @@ Postgres + Redis stack behaves the same through `storage.HybridStore`.
 | GET | `/healthz` | none | process liveness |
 | GET | `/readyz` | none | Postgres/Redis connectivity (memory store is always ready) |
 | GET | `/metrics` | none | JSON snapshot: counters, queue depth, shed rate, latency quantiles, alive devices |
+| GET | `/metrics/prometheus` | none | Prometheus text exposition of the same metrics; source of the HPA custom metric `evg_queue_depth` |
 
 Frame metadata travels in headers: `X-Device-ID`, `X-Frame-ID`,
 `X-Captured-At` (RFC3339). The token is authoritative; a conflicting

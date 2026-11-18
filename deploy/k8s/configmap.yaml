@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: evg-config
+  namespace: edgevision
+data:
+  EVG_STORE: "postgres"
+  EVG_HTTP_ADDR: ":8080"
+  EVG_GRPC_ADDR: ":9090"
+  EVG_WORKER_COUNT: "8"
+  EVG_QUEUE_CAPACITY: "2048"
+  EVG_SHED_THRESHOLD: "0.85"
+  EVG_BATCH_MAX: "500"
+  EVG_FLUSH_INTERVAL: "20ms"
+  EVG_CACHE_TTL: "5m"
+  EVG_CACHE_WINDOW: "2m"
+  EVG_HEARTBEAT_TTL: "30s"
+  EVG_RECENT_WINDOW: "500ms"
+  EVG_DRAIN_DEADLINE: "25s"
+  EVG_LOG_LEVEL: "info"
+  # Set to "true" only for the simulated fleet; see docs/DEPLOY.md.
+  EVG_AUTO_REGISTER: "false"

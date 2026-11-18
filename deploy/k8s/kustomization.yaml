@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: edgevision
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - secret.example.yaml
+  - postgres-statefulset.yaml
+  - redis.yaml
+  - gateway-deployment.yaml
+  - gateway-service.yaml
+  - hpa.yaml
+# hpa-cpu.yaml is an alternative CPU-based autoscaler and is intentionally not
+# listed here; two HPAs on one Deployment conflict. See docs/DEPLOY.md.

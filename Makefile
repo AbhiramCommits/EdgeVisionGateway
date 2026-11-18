@@ -24,7 +24,7 @@ test-integration:
 test-race:
 	$(GO) test -race -count=1 ./...
 
-lint: fmt vet
+lint: vet
 	@out=$$(gofmt -l .); if [ -n "$$out" ]; then echo "gofmt needed:"; echo "$$out"; exit 1; fi
 
 fmt:

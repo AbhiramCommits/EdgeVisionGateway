@@ -1,0 +1,75 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: evg-postgres
+  namespace: edgevision
+spec:
+  clusterIP: None
+  selector:
+    app: evg-postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: evg-postgres
+  namespace: edgevision
+spec:
+  serviceName: evg-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: evg-postgres
+  template:
+    metadata:
+      labels:
+        app: evg-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: evg
+            - name: POSTGRES_USER
+              value: evg
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: evg-secrets
+                  key: postgres-password
+          args: ["-c", "max_connections=300", "-c", "shared_buffers=256MB", "-c", "synchronous_commit=off"]
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "evg", "-d", "evg"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "evg", "-d", "evg"]
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 5Gi

@@ -1,0 +1,39 @@
+# Primary autoscaler: pod-level custom metric evg_queue_depth.
+#
+# The gateway exposes evg_queue_depth on /metrics/prometheus. With
+# prometheus-adapter configured (rule in docs/DEPLOY.md) it becomes a Pods
+# custom metric. Queue depth measures backlog directly, so it reacts to offered
+# load before CPU saturates or latency collapses.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: evg-gateway
+  namespace: edgevision
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: evg-gateway
+  minReplicas: 2
+  maxReplicas: 20
+  metrics:
+    - type: Pods
+      pods:
+        metric:
+          name: evg_queue_depth
+        target:
+          type: AverageValue
+          averageValue: "400"
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30
+      policies:
+        - type: Pods
+          value: 4
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60

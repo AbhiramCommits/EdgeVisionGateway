@@ -7,6 +7,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -290,5 +291,23 @@ func TestMetricsAndHealthEndpoints(t *testing.T) {
 	}
 	if snap.QueueDepth != 1 {
 		t.Errorf("queue_depth = %d, want 1", snap.QueueDepth)
+	}
+}
+
+func TestPrometheusMetricsEndpoint(t *testing.T) {
+	f := newAPIFixture(t, 4, 0.9)
+	f.do("POST", "/v1/frames", []byte("x"), f.token, nil)
+	rec := f.do("GET", "/metrics/prometheus", nil, "", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if ct := rec.Header().Get("Content-Type"); !strings.Contains(ct, "text/plain") {
+		t.Errorf("content type = %q", ct)
+	}
+	body := rec.Body.String()
+	for _, want := range []string{"evg_queue_depth 1", "evg_queue_capacity 4", "evg_frames_received_total 1", "evg_latency_p99_ms"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("prometheus body missing %q\n%s", want, body)
+		}
 	}
 }

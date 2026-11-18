@@ -1,0 +1,12 @@
+.git
+.gitignore
+bin/
+docs/
+terraform/
+deploy/
+scripts/
+*.md
+!README.md
+coverage.out
+*.test
+.DS_Store

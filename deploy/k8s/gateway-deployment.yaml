@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: evg-gateway
+  namespace: edgevision
+  labels:
+    app: evg-gateway
+    app.kubernetes.io/part-of: edgevisiongateway
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: evg-gateway
+  template:
+    metadata:
+      labels:
+        app: evg-gateway
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8080"
+        prometheus.io/path: "/metrics/prometheus"
+    spec:
+      # Longer than EVG_DRAIN_DEADLINE (25s) so SIGTERM always gets a full
+      # worker-pool drain before the kubelet sends SIGKILL.
+      terminationGracePeriodSeconds: 40
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: gateway
+          image: edgevisiongateway:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: grpc
+              containerPort: 9090
+          envFrom:
+            - configMapRef:
+                name: evg-config
+          env:
+            - name: EVG_POSTGRES_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: evg-secrets
+                  key: postgres-dsn
+            - name: EVG_REDIS_ADDR
+              valueFrom:
+                secretKeyRef:
+                  name: evg-secrets
+                  key: redis-addr
+            - name: EVG_DEVICE_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: evg-secrets
+                  key: device-secret
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 2
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 2
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+            timeoutSeconds: 2
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]

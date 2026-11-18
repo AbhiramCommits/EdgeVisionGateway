@@ -80,6 +80,7 @@ func NewHTTPHandler(o HTTPOptions) http.Handler {
 	mux.HandleFunc("GET /healthz", h.handleHealth)
 	mux.HandleFunc("GET /readyz", h.handleReady)
 	mux.HandleFunc("GET /metrics", h.handleMetrics)
+	mux.HandleFunc("GET /metrics/prometheus", h.handlePrometheus)
 	return h.middleware(mux)
 }
 
@@ -404,6 +405,47 @@ func (h *HTTPHandler) handleMetrics(w http.ResponseWriter, r *http.Request) {
 		snap.AliveDevices = int64(alive)
 	}
 	writeJSON(w, http.StatusOK, snap)
+}
+
+// handlePrometheus exposes the same snapshot in Prometheus text exposition
+// format so a custom-metrics adapter can serve evg_queue_depth to the HPA.
+func (h *HTTPHandler) handlePrometheus(w http.ResponseWriter, r *http.Request) {
+	snap := h.metrics.Snapshot()
+	snap.QueueDepth = h.queue.Depth()
+	snap.QueueCapacity = h.queue.Capacity()
+	snap.QueueHighWater = h.queue.HighWaterMark()
+	ctx, cancel := context.WithTimeout(r.Context(), time.Second)
+	defer cancel()
+	if alive, err := h.store.CountAlive(ctx, h.now()); err == nil {
+		snap.AliveDevices = int64(alive)
+	}
+	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+	fmt.Fprintf(w, "# HELP evg_queue_depth Frames currently waiting in the bounded queue.\n")
+	fmt.Fprintf(w, "# TYPE evg_queue_depth gauge\nevg_queue_depth %d\n", snap.QueueDepth)
+	fmt.Fprintf(w, "# HELP evg_queue_capacity Configured queue capacity.\n")
+	fmt.Fprintf(w, "# TYPE evg_queue_capacity gauge\nevg_queue_capacity %d\n", snap.QueueCapacity)
+	fmt.Fprintf(w, "# HELP evg_queue_high_water_mark Maximum queue depth observed.\n")
+	fmt.Fprintf(w, "# TYPE evg_queue_high_water_mark gauge\nevg_queue_high_water_mark %d\n", snap.QueueHighWater)
+	fmt.Fprintf(w, "# HELP evg_devices_alive Devices with a heartbeat inside the liveness TTL.\n")
+	fmt.Fprintf(w, "# TYPE evg_devices_alive gauge\nevg_devices_alive %d\n", snap.AliveDevices)
+	for _, c := range []struct {
+		name, help string
+		value      int64
+	}{
+		{"evg_frames_received_total", "Frames accepted for processing.", snap.FramesReceived},
+		{"evg_frames_shed_total", "Frames rejected by load shedding.", snap.FramesShed},
+		{"evg_frames_processed_total", "Frames detected and persisted.", snap.FramesProcessed},
+		{"evg_detections_written_total", "Detection rows persisted.", snap.DetectionsWriten},
+		{"evg_auth_failures_total", "Rejected authentication attempts.", snap.AuthFailures},
+	} {
+		fmt.Fprintf(w, "# HELP %s %s\n# TYPE %s counter\n%s %d\n", c.name, c.help, c.name, c.name, c.value)
+	}
+	fmt.Fprintf(w, "# HELP evg_latency_p50_ms Enqueue-to-persisted p50 latency.\n")
+	fmt.Fprintf(w, "# TYPE evg_latency_p50_ms gauge\nevg_latency_p50_ms %.3f\n", snap.Latency.P50MS)
+	fmt.Fprintf(w, "# HELP evg_latency_p95_ms Enqueue-to-persisted p95 latency.\n")
+	fmt.Fprintf(w, "# TYPE evg_latency_p95_ms gauge\nevg_latency_p95_ms %.3f\n", snap.Latency.P95MS)
+	fmt.Fprintf(w, "# HELP evg_latency_p99_ms Enqueue-to-persisted p99 latency.\n")
+	fmt.Fprintf(w, "# TYPE evg_latency_p99_ms gauge\nevg_latency_p99_ms %.3f\n", snap.Latency.P99MS)
 }
 
 func writeJSON(w http.ResponseWriter, status int, v any) {
