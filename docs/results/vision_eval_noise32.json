@@ -1,0 +1,18 @@
+{
+  "detector": "motion-v1",
+  "frames_evaluated": 300,
+  "objects_per_frame": 4,
+  "noise_sigma": 32,
+  "seed": 7,
+  "iou_threshold": 0.5,
+  "tp": 1152,
+  "fp": 0,
+  "fn": 0,
+  "precision": 1,
+  "recall": 1,
+  "f1": 1,
+  "mean_iou": 0.8833173027456787,
+  "ap50": 1,
+  "mean_detect_us": 15016.353333333333,
+  "total_detect_ms": 4504.906
+}
