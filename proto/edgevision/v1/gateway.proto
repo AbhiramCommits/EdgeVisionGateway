@@ -1,0 +1,75 @@
+syntax = "proto3";
+
+package edgevision.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/edgevision/edgevisiongateway/internal/pb;pb";
+
+// Gateway is the edge ingestion and query API. Every RPC requires a Bearer
+// device token in the "authorization" metadata entry.
+service Gateway {
+  // IngestFrame accepts one encoded JPEG/PNG frame and enqueues it for
+  // detection. Shedding returns codes.ResourceExhausted.
+  rpc IngestFrame(IngestFrameRequest) returns (IngestFrameResponse);
+
+  // Heartbeat refreshes the device's liveness TTL.
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+
+  // QueryDetections reads detections by device or by label.
+  rpc QueryDetections(QueryDetectionsRequest) returns (QueryDetectionsResponse);
+}
+
+message IngestFrameRequest {
+  string device_id = 1;
+  string frame_id = 2;
+  google.protobuf.Timestamp captured_at = 3;
+  bytes frame = 4;
+  string content_type = 5;
+}
+
+message IngestFrameResponse {
+  bool accepted = 1;
+  bool shed = 2;
+  string frame_id = 3;
+  int32 queue_depth = 4;
+  int32 retry_after_ms = 5;
+}
+
+message HeartbeatRequest {
+  string device_id = 1;
+}
+
+message HeartbeatResponse {
+  bool ok = 1;
+  int64 alive_devices = 2;
+}
+
+message QueryDetectionsRequest {
+  // Exactly one of device_id or label should be set.
+  string device_id = 1;
+  string label = 2;
+  google.protobuf.Timestamp from = 3;
+  google.protobuf.Timestamp to = 4;
+  int32 limit = 5;
+  // force_db bypasses the Redis hot cache.
+  bool force_db = 6;
+}
+
+message Detection {
+  string device_id = 1;
+  string frame_id = 2;
+  google.protobuf.Timestamp captured_at = 3;
+  string label = 4;
+  double confidence = 5;
+  int32 x = 6;
+  int32 y = 7;
+  int32 w = 8;
+  int32 h = 9;
+}
+
+message QueryDetectionsResponse {
+  repeated Detection detections = 1;
+  // "cache" or "db".
+  string source = 2;
+}

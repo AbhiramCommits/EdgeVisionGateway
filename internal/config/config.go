@@ -46,6 +46,9 @@ type Config struct {
 	// CacheWindow is how far back a query must reach for the Redis hot cache
 	// to be considered authoritative ("recent") instead of Postgres.
 	CacheWindow time.Duration
+	// RecentWindow is the look-back used to classify a device's frames as
+	// low priority (it had a detection within this window).
+	RecentWindow time.Duration
 	// DrainDeadline bounds graceful shutdown while workers drain the queue.
 	DrainDeadline time.Duration
 	// BatchMax is the maximum detections per Postgres COPY batch.
@@ -57,6 +60,9 @@ type Config struct {
 	Store string
 	// DeviceSecret is the HMAC secret used to issue and verify device tokens.
 	DeviceSecret string
+	// AutoRegister registers signed-but-unknown devices on first use. Intended
+	// for the simulated fleet and benchmarks; leave false in production.
+	AutoRegister bool
 	// DetectorBackend selects "motion" (default) or "onnx".
 	DetectorBackend string
 	// ONNXModelPath is required when DetectorBackend == "onnx".
@@ -80,11 +86,13 @@ func Default() Config {
 		DetectionCacheTTL: 5 * time.Minute,
 		HeartbeatTTL:      30 * time.Second,
 		CacheWindow:       2 * time.Minute,
+		RecentWindow:      500 * time.Millisecond,
 		DrainDeadline:     15 * time.Second,
 		BatchMax:          500,
-		FlushInterval:     250 * time.Millisecond,
+		FlushInterval:     20 * time.Millisecond,
 		Store:             StorePostgres,
 		DeviceSecret:      "dev-secret-change-me",
+		AutoRegister:      false,
 		DetectorBackend:   "motion",
 		LogLevel:          "info",
 	}
@@ -106,6 +114,12 @@ func Load() (Config, error) {
 	strEnv(&c.DetectorBackend, "EVG_DETECTOR")
 	strEnv(&c.ONNXModelPath, "EVG_ONNX_MODEL")
 	strEnv(&c.LogLevel, "EVG_LOG_LEVEL")
+	if err := boolEnv(&c.AutoRegister, "EVG_AUTO_REGISTER"); err != nil {
+		return c, err
+	}
+	if err := durEnv(&c.RecentWindow, "EVG_RECENT_WINDOW"); err != nil {
+		return c, err
+	}
 
 	// Collect parse errors so a single bad variable is reported precisely.
 	var errs []string
@@ -168,6 +182,8 @@ func (c Config) Validate() error {
 		return fmt.Errorf("config: heartbeat TTL must be > 0, got %s", c.HeartbeatTTL)
 	case c.CacheWindow <= 0:
 		return fmt.Errorf("config: cache window must be > 0, got %s", c.CacheWindow)
+	case c.RecentWindow <= 0:
+		return fmt.Errorf("config: recent window must be > 0, got %s", c.RecentWindow)
 	case c.DrainDeadline <= 0:
 		return fmt.Errorf("config: drain deadline must be > 0, got %s", c.DrainDeadline)
 	case c.BatchMax <= 0:
@@ -231,5 +247,18 @@ func durEnv(dst *time.Duration, key string) error {
 		return fmt.Errorf("%s: %q is not a duration (e.g. 5m, 250ms)", key, v)
 	}
 	*dst = d
+	return nil
+}
+
+func boolEnv(dst *bool, key string) error {
+	v, ok := os.LookupEnv(key)
+	if !ok || v == "" {
+		return nil
+	}
+	b, err := strconv.ParseBool(v)
+	if err != nil {
+		return fmt.Errorf("%s: %q is not a boolean", key, v)
+	}
+	*dst = b
 	return nil
 }
