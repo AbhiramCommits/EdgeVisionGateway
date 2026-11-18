@@ -29,3 +29,6 @@ crash.log
 # ONNX runtime shared library fetched locally
 *.so
 !deploy/**/*.so
+
+# Go test binaries
+*.test

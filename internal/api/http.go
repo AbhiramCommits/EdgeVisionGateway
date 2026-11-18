@@ -397,6 +397,7 @@ func (h *HTTPHandler) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	snap := h.metrics.Snapshot()
 	snap.QueueDepth = h.queue.Depth()
 	snap.QueueCapacity = h.queue.Capacity()
+	snap.QueueHighWater = h.queue.HighWaterMark()
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second)
 	defer cancel()
 	if alive, err := h.store.CountAlive(ctx, h.now()); err == nil {

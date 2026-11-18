@@ -17,7 +17,7 @@ docker info
 | --- | --- |
 | Date captured | 2026-11-17 |
 | OS | macOS 27.2.1 (Darwin 27.2.0, arm64) |
-| CPU | Apple M2 (arm64), 8 logical cores (`sysctl -n hw.ncpu` → `8`) |
+| CPU | Apple M3 (arm64), 8 logical cores (`sysctl -n hw.ncpu` → `8`) |
 | RAM | 16 GiB (`hw.memsize` → `17179869184` bytes) |
 | Disk free at start | ~97 GiB |
 | Shell | zsh |

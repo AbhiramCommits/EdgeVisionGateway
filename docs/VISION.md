@@ -30,14 +30,19 @@ Each stage is a separately tested function in `internal/vision/motion.go`.
    `image/png`.
 2. **`UpdateBackgroundMasked(bg, cur, mask, alpha)`** — selective running
    average, `bg = (1-alpha)*bg + alpha*cur` on pixels that are *not* foreground
-   (`mask == 0`). Default `alpha = 0.02`. Freezing foreground pixels is what
-   prevents a moving object from being absorbed into the background and leaving
-   a trailing ghost. The plain, unmasked `UpdateBackground` is also exported and
-   tested as the textbook running-average model.
+   (`mask == 0`). Default `alpha = 0.02`, evaluated in fixed point with rounding
+   (truncation would bias the background downward by `0.5/alpha` levels). Freezing
+   foreground pixels is what prevents a moving object from being absorbed into the
+   background and leaving a trailing ghost. The plain, unmasked
+   `UpdateBackground` is also exported and tested as the textbook running-average
+   model.
 3. **`AbsDiffThreshold`** — binary mask where `|bg-cur| > 30` (0-255 scale).
 4. **Morphology** — 3x3 square structuring element: opening
    (`Erode`→`Dilate`) removes salt-and-pepper noise, then closing
-   (`Dilate`→`Erode`) reconnects object edges.
+   (`Dilate`→`Erode`) reconnects object edges. The implementation is separable
+   (horizontal then vertical) and processes eight binary pixels per 64-bit word;
+   `TestMorphWordPathMatchesReference` checks it against a byte-wise reference on
+   widths that are and are not multiples of eight.
 5. **`ConnectedComponents`** — 8-connected two-pass union-find labelling with
    path compression and one tight bounding box per component.
 6. **Filters** — minimum area 250 px, minimum width/height 4 px.
@@ -45,6 +50,12 @@ Each stage is a separately tested function in `internal/vision/motion.go`.
    classifies `person`; otherwise `object`. Confidence is
    `fill_ratio * min(1, area/4096)` clamped to [0,1].
 8. **`NonMaxSuppression`** — greedy by confidence, suppress IoU > 0.4.
+
+All intermediate images (gray frame, mask, two morphology scratch buffers, label
+array) are allocated once per frame size and reused, so steady-state `Detect`
+allocates only a few KB per frame (3,984 B / 14 allocs at 640x480 in the
+benchmark). JPEG decodes to `*image.YCbCr`, whose Y plane is copied directly as
+grayscale instead of running a per-pixel colour conversion.
 
 The detector keeps one background model and therefore must not be used
 concurrently; the worker pool creates one detector per worker.
@@ -88,18 +99,21 @@ Standard run (`go run ./cmd/evaldet -frames 300 -objects 4 -noise 6 -seed 7`):
 | F1 | 1.0000 |
 | Mean IoU (matched) | 1.0000 |
 | AP@0.5 | 1.0000 |
-| Mean detect latency | 12,269 µs/frame @ 640x480 |
+| Mean detect latency | 1,639 µs/frame @ 640x480 |
 
 The perfect score is real for this scene, but it is also the expected outcome:
 high-contrast filled rectangles on a static background are exactly the input a
 background-subtraction detector is designed for. It is **not** a claim about
 real-world imagery. The noise sweep (`docs/results/vision_eval_sweep.md`) is
-the more informative measurement: accuracy holds through sigma 32, degrades at
-sigma 48 (precision 0.9051, recall 0.9271) and collapses at sigma 64, which is
-the honest operating limit of a fixed-threshold background model.
+the more informative measurement: accuracy holds through sigma 32 (IoU falls to
+0.8807), degrades at sigma 48 (precision 0.9156, recall 0.9323) and collapses at
+sigma 64 (precision 0.0041), which is the honest operating limit of a
+fixed-threshold background model.
 
 Raw artefacts: `docs/results/vision_eval.json` and
-`docs/results/vision_eval_noise*.json`.
+`docs/results/vision_eval_noise*.json`. Detector cost from the benchmark:
+1,574,621 ns/op (1.57 ms) at 640x480 and 4,505,409 ns/op (4.51 ms) at 1280x720,
+3,984 B / 14 allocs per 640x480 frame (see `docs/results/benchmark.md`).
 
 ## Tests
 

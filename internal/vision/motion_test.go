@@ -218,3 +218,39 @@ func TestEndToEndRecall(t *testing.T) {
 		t.Errorf("precision = %.3f, want >= 0.90", precision)
 	}
 }
+
+func randomMask(w, h int, seed int64) *image.Gray {
+	m := image.NewGray(image.Rect(0, 0, w, h))
+	x := uint64(seed) | 1
+	for i := range m.Pix {
+		x ^= x << 13
+		x ^= x >> 7
+		x ^= x << 17
+		if x%5 == 0 {
+			m.Pix[i] = 255
+		}
+	}
+	return m
+}
+
+// TestMorphWordPathMatchesReference exercises the 64-bit separable path against
+// the byte-wise reference on widths that are and are not multiples of eight.
+func TestMorphWordPathMatchesReference(t *testing.T) {
+	sizes := [][2]int{{37, 23}, {64, 17}, {8, 8}, {9, 5}, {71, 9}}
+	for _, sz := range sizes {
+		w, h := sz[0], sz[1]
+		src := randomMask(w, h, int64(w*h))
+		for _, erode := range []bool{true, false} {
+			want := image.NewGray(src.Bounds())
+			morphGeneric(want, src, erode)
+			got := image.NewGray(src.Bounds())
+			tmp := image.NewGray(src.Bounds())
+			morphInto(got, tmp, src, erode)
+			for i := range want.Pix {
+				if got.Pix[i] != want.Pix[i] {
+					t.Fatalf("size=%dx%d erode=%v pixel %d = %d, want %d", w, h, erode, i, got.Pix[i], want.Pix[i])
+				}
+			}
+		}
+	}
+}

@@ -177,6 +177,7 @@ type Snapshot struct {
 	ShedRate         float64      `json:"shed_rate"`
 	QueueDepth       int          `json:"queue_depth"`
 	QueueCapacity    int          `json:"queue_capacity"`
+	QueueHighWater   int          `json:"queue_high_water_mark"`
 	AliveDevices     int64        `json:"alive_devices"`
 	Latency          LatencyStats `json:"latency"`
 }
