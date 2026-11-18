@@ -1,0 +1,40 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: evg-postgres
+    environment:
+      POSTGRES_DB: evg
+      POSTGRES_USER: evg
+      POSTGRES_PASSWORD: evg
+    ports:
+      - "5432:5432"
+    volumes:
+      - evg-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U evg -d evg"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    command:
+      - postgres
+      - -c
+      - max_connections=300
+      - -c
+      - shared_buffers=512MB
+      - -c
+      - synchronous_commit=off
+
+  redis:
+    image: redis:7-alpine
+    container_name: evg-redis
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "no", "--maxmemory", "512mb", "--maxmemory-policy", "allkeys-lru"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  evg-pgdata:
