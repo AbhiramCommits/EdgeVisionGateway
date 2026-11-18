@@ -7,15 +7,15 @@ distroless static runtime, non-root):
 $ docker build -t edgevisiongateway:dev .
 ...
 $ docker image inspect edgevisiongateway:dev --format '{{.Size}}'
-30156361
+30156467
 
 $ docker images edgevisiongateway:dev --format '{{.Repository}}:{{.Tag}} {{.Size}} {{.ID}}'
-edgevisiongateway:dev 30.2MB 1176ca21d486
+edgevisiongateway:dev 30.2MB 6507bfd179ed
 ```
 
 | Property | Value |
 | --- | --- |
-| Compressed/local image size | **30,156,361 bytes (30.2 MB)** |
+| Compressed/local image size | **30,156,467 bytes (30.2 MB)** |
 | Builder | `golang:1.23-alpine` |
 | Runtime | `gcr.io/distroless/static-debian12:nonroot` |
 | User | `nonroot:nonroot` (UID/GID 65532) |

@@ -181,7 +181,9 @@ func (s *Service) QueryDevice(ctx context.Context, deviceID string, from, to tim
 		dets, err := s.store.GetLatestDetections(ctx, deviceID)
 		switch {
 		case err == nil:
-			if len(dets) > 0 && !dets[0].CapturedAt.Before(from) {
+			// The cache holds only the newest frame, so it can answer the
+			// query only when that frame actually falls inside [from, to).
+			if len(dets) > 0 && !dets[0].CapturedAt.Before(from) && dets[0].CapturedAt.Before(to) {
 				return QueryResult{Detections: filterDetections(dets, from, to, limit), Source: "cache"}, nil
 			}
 		case errors.Is(err, storage.ErrCacheMiss):

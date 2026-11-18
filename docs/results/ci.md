@@ -14,7 +14,7 @@ Everything below is real output from this machine (see
 | integration | `go test -tags integration -v ./internal/storage/...` | **15/15 pass** (8 memstore, 4 Postgres, 3 Redis) |
 | combined coverage | `go test -tags integration -coverprofile=coverage-integration.out ./...` | **52.2% of statements** |
 | Go 1.23 compatibility | `docker run --rm -v "$PWD":/src -w /src golang:1.23-alpine go test -mod=readonly ./...` | all packages pass |
-| image build | `docker build -t edgevisiongateway:dev .` | success, **30,156,361 bytes** |
+| image build | `docker build -t edgevisiongateway:dev .` | success, **30,156,467 bytes** |
 | terraform fmt | `terraform fmt -check` (in `terraform/`) | pass |
 | terraform init | `terraform init -backend=false` | success |
 | terraform validate | `terraform validate` | `Success! The configuration is valid.` |

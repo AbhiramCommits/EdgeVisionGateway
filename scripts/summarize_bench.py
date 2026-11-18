@@ -81,7 +81,7 @@ def main():
     out.append("")
     out.append("`scripts/bench.sh` restarts the gateway before every scenario, runs the scenario,")
     out.append("waits for the queue to drain, scrapes `/metrics`, then moves on. Sustained processed")
-    out.append("fps is `frames_processed / scenario_duration`; accepted/shed/error fractions are")
+    out.append("fps is `frames_processed / measured_elapsed_seconds`; accepted/shed/error fractions are")
     out.append("client-observed. E2E latency is the load generator's sampled read-back via")
     out.append("`GET /v1/devices/{id}/detections?source=db`; server p50/p95/p99 is the gateway's")
     out.append("enqueue → persisted histogram. Both are reported.\n")
@@ -134,12 +134,19 @@ def main():
     out.append("")
     out.append("## Interpretation\n")
     out.append(f"- The worker sweep peaks at **{peak_proc:,.0f} processed fps with {peak_w} workers**.")
-    out.append(f"  {knee_w} workers is the smallest count reaching at least 95% of that peak; the 16-worker run")
+    out.append(f"  {knee_w} workers is the smallest count reaching at least 95% of that peak.")
     below = [(w, p) for w, _, p, _, _, _ in sweep if w < knee_w]
+    above = [(w, p) for w, _, p, _, _, _ in sweep if w > knee_w]
     if below:
         prev = max(below, key=lambda x: x[0])
-        out.append(f"  moves from {prev[1]:,.0f} fps at {prev[0]} workers to {peak_proc:,.0f} fps at {knee_w}, so the knee is between")
-        out.append(f"  {prev[0]} and {knee_w} workers on this 8-core host. Adding workers beyond {knee_w} buys no throughput.")
+        out.append(f"  Throughput moves from {prev[1]:,.0f} fps at {prev[0]} workers to {peak_proc:,.0f} fps at {knee_w},")
+        out.append(f"  so the knee sits between {prev[0]} and {knee_w} workers on this 8-core host.")
+    if above:
+        best_above = max(above, key=lambda x: x[1])
+        out.append(f"  {best_above[0]} workers measured {best_above[1]:,.0f} fps; more workers did not raise throughput.")
+    else:
+        out.append("  No worker count above this was measured; it is the best point in the sweep, not a")
+        out.append("  demonstrated plateau.")
     out.append(f"- Devices supported per gateway instance at 1 fps/device ≈ **{peak_proc:,.0f}** (the sustained")
     out.append(f"  processed rate divided by 1 fps). At the more realistic 2 fps/device: "
                f"**{peak_proc / 2:,.0f}** devices; derated by 30% for headroom: "
@@ -164,18 +171,25 @@ def main():
         out.append(f"  Load-generator errors in this run: {kinds}; these are client-side transport errors")
         out.append("  under the burst, not gateway responses, and are counted separately from 429s.")
     out.append("")
+    all_samples = [summary[k]["lg"]["e2e_samples"] for k in summary] + [lg["e2e_samples"] for _, _, _, _, _, lg in sweep]
+    a_proc = summary["A_steady"]["proc_fps"]
+    a_queue = summary["A_steady"]["srv"]["queue_high_water_mark"]
     out.append("## Measurement notes\n")
     out.append("- Server-side latency is measured from enqueue to a successful durable batch insert; it")
     out.append("  therefore includes time spent waiting behind other frames in the bounded queue.")
     out.append("- E2E read-backs sample every 50th device and 1 frame in 5 from those devices, with at")
     out.append("  most 16 concurrent pollers at a 100 ms interval. That caps read-back load at ~160")
-    out.append("  queries/s; the small sample counts in the table (41-174) are the honest consequence,")
-    out.append("  so treat the p99 columns as indicative rather than high-percentile-exact.")
-    out.append("- The load generator is not infinitely fast: at the 10,000 fps burst target it actually")
-    out.append("  attempted ~3,676 fps on average (CPU-bound client), which is still 3x gateway capacity.")
-    out.append("- Scenario A runs at ~98% of measured capacity with zero shedding, so its queue depth")
-    out.append("  (peak 423) and p95 reflect a system operating right at its sustainable limit, not an")
-    out.append("  overload condition.")
+    out.append(f"  queries/s; the small sample counts ({min(all_samples)}-{max(all_samples)}) are the honest")
+    out.append("  consequence, so treat the p99 columns as indicative rather than exact.")
+    out.append(f"- The load generator is not infinitely fast: at the {c['lg']['offered_fps'] * c['lg']['burst_multiplier']:,.0f} fps burst")
+    out.append(f"  target it actually attempted {c['lg']['requested'] / c['lg']['elapsed_seconds']:,.0f} fps on average (CPU-bound client),")
+    out.append(f"  which is still {c['lg']['requested'] / c['lg']['elapsed_seconds'] / peak_proc:.1f}x the measured per-instance capacity.")
+    a_shed = summary["A_steady"]["lg"]["shed_pct"]
+    out.append(f"- Scenario A sustained {a_proc:,.0f} fps ({100 * a_proc / peak_proc:.0f}% of the sweep's peak)")
+    out.append(f"  and shed {a_shed:.1f}%; its peak queue ({a_queue:,}) and p95 reflect operation near")
+    out.append("  capacity rather than an idle system.")
+    out.append("- These are single-run numbers on a shared 8-core host; repeated runs of the matrix")
+    out.append("  moved the 8-worker result by roughly 10%, so treat absolute throughput as ±10%.")
     out.append("")
 
     rows, raw = microbench()

@@ -122,6 +122,7 @@ type statusRecorder struct {
 	wrote  bool
 }
 
+// WriteHeader records the status code while forwarding it.
 func (s *statusRecorder) WriteHeader(code int) {
 	if !s.wrote {
 		s.status = code
@@ -130,6 +131,7 @@ func (s *statusRecorder) WriteHeader(code int) {
 	s.ResponseWriter.WriteHeader(code)
 }
 
+// Write counts response bytes while forwarding them.
 func (s *statusRecorder) Write(b []byte) (int, error) {
 	s.wrote = true
 	n, err := s.ResponseWriter.Write(b)

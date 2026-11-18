@@ -231,6 +231,21 @@ func TestQueryCacheAndDBPaths(t *testing.T) {
 		t.Errorf("db path = %+v", dbRes)
 	}
 
+	// A window that ends before the cached frame must fall through to the DB,
+	// not return an empty cache response.
+	pastTo := now.Add(-30 * time.Second)
+	rec = f.do("GET", "/v1/devices/cam-1/detections?from="+pastTo.Add(-time.Minute).Format(time.RFC3339Nano)+"&to="+pastTo.Format(time.RFC3339Nano), nil, f.token, nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("past-window query status = %d", rec.Code)
+	}
+	var pastRes struct {
+		Source string `json:"source"`
+	}
+	decodeBody(t, rec, &pastRes)
+	if pastRes.Source != "db" {
+		t.Errorf("window ending before cached frame served from %q, want db", pastRes.Source)
+	}
+
 	rec = f.do("GET", "/v1/devices/cam-2/detections", nil, f.token, nil)
 	if rec.Code != http.StatusForbidden {
 		t.Errorf("path mismatch status = %d, want 403", rec.Code)

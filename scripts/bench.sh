@@ -43,6 +43,9 @@ if [[ "$STORE" == "postgres" ]]; then
     echo "postgres/redis did not become healthy" >&2
     exit 1
   fi
+  # Start each benchmark run from an empty detection store. Partitions and
+  # indexes are re-created by the gateway's Migrate on startup.
+  docker exec evg-postgres psql -U evg -d evg -c 'TRUNCATE TABLE detections' >/dev/null
 fi
 
 start_gateway() {
@@ -118,7 +121,7 @@ run_scenario A_steady 8 500 2 60 0 1 0
 run_scenario B_fleet2000 8 2000 1 60 0 1 0
 run_scenario C_burst5x 8 2000 1 60 20 5 15
 for w in 2 4 8 16; do
-  run_scenario "D_workers_$w" "$w" 1200 1 30 0 1 0
+  run_scenario "D_workers_$w" "$w" 2000 1 30 0 1 0
 done
 
 echo "== detector microbenchmark =="

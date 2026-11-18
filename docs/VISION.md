@@ -99,7 +99,7 @@ Standard run (`go run ./cmd/evaldet -frames 300 -objects 4 -noise 6 -seed 7`):
 | F1 | 1.0000 |
 | Mean IoU (matched) | 1.0000 |
 | AP@0.5 | 1.0000 |
-| Mean detect latency | 1,639 µs/frame @ 640x480 |
+| Mean detect latency | 2,133 µs/frame @ 640x480 |
 
 The perfect score is real for this scene, but it is also the expected outcome:
 high-contrast filled rectangles on a static background are exactly the input a
@@ -112,8 +112,11 @@ fixed-threshold background model.
 
 Raw artefacts: `docs/results/vision_eval.json` and
 `docs/results/vision_eval_noise*.json`. Detector cost from the benchmark:
-1,574,621 ns/op (1.57 ms) at 640x480 and 4,505,409 ns/op (4.51 ms) at 1280x720,
+1,609,888 ns/op (1.61 ms) at 640x480 and 4,646,728 ns/op (4.65 ms) at 1280x720,
 3,984 B / 14 allocs per 640x480 frame (see `docs/results/benchmark.md`).
+Detector latency varies with host load: the committed eval run measured
+2,133 µs/frame and an immediate repeat measured 1,649 µs/frame with identical
+precision, recall, IoU and AP.
 
 ## Tests
 

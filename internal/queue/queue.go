@@ -137,7 +137,10 @@ func (q *FrameQueue) Capacity() int { return q.capacity }
 // HighWaterMark is the largest depth observed since creation.
 func (q *FrameQueue) HighWaterMark() int { return int(q.hwm.Load()) }
 
-// ShedLow and ShedHigh expose the per-priority rejection counts for tests and
-// benchmark reporting.
-func (q *FrameQueue) ShedLow() int64  { return q.shedLow.Load() }
+// ShedLow returns how many low-priority frames were rejected. It exists for
+// tests and benchmark reporting.
+func (q *FrameQueue) ShedLow() int64 { return q.shedLow.Load() }
+
+// ShedHigh returns how many high-priority frames were rejected (hard capacity
+// or shutdown). It exists for tests and benchmark reporting.
 func (q *FrameQueue) ShedHigh() int64 { return q.shedHigh.Load() }
